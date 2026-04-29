@@ -84,18 +84,3 @@ async def get_detail(
         **food,
         nutrients=[NutrientValue(**r) for r in nutrient_rows],
     )
-
-
-async def find_missing_codes(
-    pool: AsyncConnectionPool,
-    codes: list[int],
-) -> list[int]:
-    """Return the subset of `codes` that are NOT present in the foods table."""
-    async with pool.connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(
-                "SELECT nevo_code FROM foods WHERE nevo_code = ANY(%s)",
-                (codes,),
-            )
-            existing = {row[0] for row in await cur.fetchall()}
-    return [c for c in codes if c not in existing]
