@@ -8,8 +8,6 @@ NEVO 2025 nutrient database to calorietje.nl.
 - Auth via `X-API-Key` header.
 - Postgres als opslag; geen externe afhankelijkheden.
 
-Volledige specs staan in [`specs/`](specs/) en de roadmap in [`PLAN.md`](PLAN.md).
-
 ## Stack
 Python 3.12 · FastAPI · uvicorn · psycopg 3 · openpyxl · PostgreSQL 18
 
