@@ -14,7 +14,6 @@ log = logging.getLogger("nutrientcontent")
 @router.get("/health")
 async def health(pool: PoolDep) -> JSONResponse:
     db_status = "ok"
-    http_status = 200
     try:
         async with pool.connection() as conn:
             cur = await conn.execute("SELECT 1")
@@ -22,8 +21,9 @@ async def health(pool: PoolDep) -> JSONResponse:
     except Exception:
         log.exception("health: db probe failed")
         db_status = "unreachable"
-        http_status = 503
+    overall = "ok" if db_status == "ok" else "degraded"
+    http_status = 200 if db_status == "ok" else 503
     return JSONResponse(
-        {"status": "ok", "db": db_status, "version": settings.app_version},
+        {"status": overall, "db": db_status, "version": settings.app_version},
         status_code=http_status,
     )

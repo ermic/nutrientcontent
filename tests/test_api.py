@@ -4,8 +4,12 @@ Pre-conditie: NEVO 2025 is geladen via src/load_nevo.py.
 Sample sanity values used:
   nevo_code=1  Aardappelen rauw      88 kcal/100g, 371 kJ/100g, 2 g protein
 """
+from contextlib import asynccontextmanager
+
 import httpx
 import pytest
+
+from src.app import app
 
 
 # -- /health --------------------------------------------------------------
@@ -20,6 +24,29 @@ async def test_health_ok(client: httpx.AsyncClient):
     assert "version" in body
 
 
+async def test_health_degraded_when_db_down(client: httpx.AsyncClient):
+    # Regression: status now reflects db reachability instead of always being "ok".
+    @asynccontextmanager
+    async def _broken_conn():
+        raise RuntimeError("simulated db outage")
+        yield  # unreachable, here to satisfy asynccontextmanager
+
+    class _BrokenPool:
+        def connection(self):
+            return _broken_conn()
+
+    original = app.state.pool
+    app.state.pool = _BrokenPool()
+    try:
+        r = await client.get("/health")
+    finally:
+        app.state.pool = original
+    assert r.status_code == 503
+    body = r.json()
+    assert body["status"] == "degraded"
+    assert body["db"] == "unreachable"
+
+
 # -- auth -----------------------------------------------------------------
 
 
@@ -31,6 +58,17 @@ async def test_foods_requires_api_key(client: httpx.AsyncClient):
 
 async def test_foods_wrong_api_key(client: httpx.AsyncClient):
     r = await client.get("/foods?q=appel", headers={"X-API-Key": "bogus"})
+    assert r.status_code == 401
+    assert r.json() == {"error": "invalid api key"}
+
+
+async def test_foods_non_ascii_api_key(client: httpx.AsyncClient):
+    # Regression: compare_digest on str rejects non-ASCII; we encode to bytes
+    # so a malformed key returns 401 instead of crashing with TypeError.
+    # httpx blocks str-with-non-ASCII at the client; bytes pass through.
+    r = await client.get(
+        "/foods?q=appel", headers={"X-API-Key": "blé".encode("latin-1")}
+    )
     assert r.status_code == 401
     assert r.json() == {"error": "invalid api key"}
 
