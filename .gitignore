@@ -18,6 +18,10 @@ CLAUDE.md
 .vscode/
 .idea/
 
+# Planning artefacten — lokaal houden, niet in repo
+PLAN.md
+specs/
+
 # Data — NEVO licentie, niet in publieke repo
 *.xlsx
 *.pdf
