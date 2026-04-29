@@ -5,16 +5,6 @@ Wants=postgresql.service
 
 [Service]
 Type=exec
-User=erik
-Group=erik
-WorkingDirectory=/home/erik/microservices/nutrientcontent
-EnvironmentFile=/home/erik/microservices/nutrientcontent/.env
-ExecStart=/home/erik/microservices/nutrientcontent/.venv/bin/uvicorn \
-    src.app:app \
-    --host 127.0.0.1 \
-    --port 5555 \
-    --no-access-log \
-    --log-level info
 Restart=on-failure
 RestartSec=3
 StandardOutput=journal
@@ -25,12 +15,16 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/erik/microservices/nutrientcontent
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 LockPersonality=true
+
+# User, WorkingDirectory, EnvironmentFile, ExecStart, ReadWritePaths
+# komen uit een drop-in op deze host:
+#   /etc/systemd/system/nutrientcontent.service.d/local.conf
+# Zie systemd/local.conf.example als template.
 
 [Install]
 WantedBy=multi-user.target

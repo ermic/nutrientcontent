@@ -1,0 +1,10 @@
+[Service]
+# Vul deze waarden in voor jouw host en zet het bestand op:
+#   /etc/systemd/system/nutrientcontent.service.d/local.conf
+# Daarna: sudo systemctl daemon-reload && sudo systemctl restart nutrientcontent
+User=erik
+Group=erik
+WorkingDirectory=/home/erik/microservices/nutrientcontent
+EnvironmentFile=/home/erik/microservices/nutrientcontent/.env
+ExecStart=/home/erik/microservices/nutrientcontent/.venv/bin/uvicorn src.app:app --host 127.0.0.1 --port 5555 --no-access-log --log-level info
+ReadWritePaths=/home/erik/microservices/nutrientcontent

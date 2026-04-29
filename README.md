@@ -84,9 +84,21 @@ psql "$NEVO_LOADER_URL" -f migrations/0001_init.sql
 ```
 
 ### 6. systemd
+De repo-unit is generiek; machine-specifieke paden + `User=` staan in een
+drop-in op `/etc/systemd/system/nutrientcontent.service.d/local.conf`.
+
 ```bash
+# 6a. base unit symlinken
 sudo ln -sf /home/erik/microservices/nutrientcontent/systemd/nutrientcontent.service \
             /etc/systemd/system/nutrientcontent.service
+
+# 6b. drop-in aanmaken vanaf voorbeeld; paden aanpassen indien nodig
+sudo mkdir -p /etc/systemd/system/nutrientcontent.service.d
+sudo cp /home/erik/microservices/nutrientcontent/systemd/local.conf.example \
+        /etc/systemd/system/nutrientcontent.service.d/local.conf
+sudoedit /etc/systemd/system/nutrientcontent.service.d/local.conf
+
+# 6c. starten
 sudo systemctl daemon-reload
 sudo systemctl enable --now nutrientcontent
 ```
