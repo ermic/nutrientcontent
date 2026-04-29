@@ -1,13 +1,11 @@
 """Compute nutrition totals for a list of (nevo_code, grams) pairs.
 Berekent voedingstotalen voor een lijst (nevo_code, grams)-paren.
 
-Two DB round-trips: one to fetch food names (and detect missing codes),
-one to fetch all relevant nutrient values. All math + rounding happens
-in Python."""
+Two DB round-trips: one to fetch food names (which also reveals missing
+nevo_codes via the result set), one to fetch all relevant nutrient
+values. All math + rounding happens in Python."""
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
-
-from src.entities.food import repo as food_repo
 
 from .models import CalcItem, CalcItemOut, CalcResponse, CalcTotals
 
@@ -40,10 +38,6 @@ async def calculate(
 ) -> CalcResponse:
     codes = [i.nevo_code for i in items]
 
-    missing = await food_repo.find_missing_codes(pool, codes)
-    if missing:
-        raise UnknownNevoCodes(sorted(set(missing)))
-
     async with pool.connection() as conn:
         async with conn.cursor(row_factory=dict_row) as cur:
             await cur.execute(
@@ -56,6 +50,10 @@ async def calculate(
             )
             food_rows = await cur.fetchall()
             food_by_code: dict[int, dict] = {r["nevo_code"]: r for r in food_rows}
+
+            missing = [c for c in codes if c not in food_by_code]
+            if missing:
+                raise UnknownNevoCodes(sorted(set(missing)))
 
             await cur.execute(
                 """

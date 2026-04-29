@@ -4,6 +4,7 @@ Composition root van FastAPI.
 Wires lifespan-managed connection pool, exception handlers that match
 the API contract in specs/03-api.md, and includes one router per feature
 slice."""
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -17,6 +18,12 @@ from src.features.health.router import router as health_router
 from src.features.search_foods.router import router as search_foods_router
 from src.shared.config import settings
 
+logging.basicConfig(
+    level=settings.log_level.upper(),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+log = logging.getLogger("nutrientcontent")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,10 +32,12 @@ async def lifespan(app: FastAPI):
     )
     await pool.open()
     app.state.pool = pool
+    log.info("pool opened (min=2, max=10)")
     try:
         yield
     finally:
         await pool.close()
+        log.info("pool closed")
 
 
 def create_app() -> FastAPI:
@@ -39,10 +48,12 @@ def create_app() -> FastAPI:
     )
 
     @app.exception_handler(HTTPException)
-    async def http_exception_handler(_request, exc: HTTPException):
+    async def http_exception_handler(request, exc: HTTPException):
         # Spec: error responses use {"error": "..."} (not FastAPI's default
         # {"detail": "..."}). When a route already raises with detail=dict
         # (e.g. 404 with extras), pass it through as-is.
+        if exc.status_code >= 500:
+            log.error("%s %s -> %d: %s", request.method, request.url.path, exc.status_code, exc.detail)
         body = exc.detail if isinstance(exc.detail, dict) else {"error": exc.detail}
         return JSONResponse(body, status_code=exc.status_code)
 
