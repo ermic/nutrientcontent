@@ -1,8 +1,7 @@
 # nutrientcontent
 
 Lokale microservice die de RIVM **NEVO 2025** voedingswaardetabel ontsluit voor
-project. Local microservice exposing the Dutch
-NEVO 2025 nutrient database.
+ai tooling. Local microservice exposing the Dutch NEVO 2025 nutrient database.
 
 - HTTP server bindt op `127.0.0.1:5555` — niet bereikbaar van buiten.
 - Auth via `X-API-Key` header.
