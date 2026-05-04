@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     nevo_api_url: str
     api_key: str
+    gemini_api_key: str
     log_level: str = "info"
 
 

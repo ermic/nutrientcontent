@@ -10,12 +10,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pgvector.psycopg import register_vector_async
 from psycopg_pool import AsyncConnectionPool
 
 from src.features.calculate.router import router as calculate_router
 from src.features.get_food.router import router as get_food_router
 from src.features.health.router import router as health_router
 from src.features.search_foods.router import router as search_foods_router
+from src.features.search_foods_vector.router import router as search_foods_vector_router
 from src.shared.config import settings
 
 logging.basicConfig(
@@ -25,10 +27,21 @@ logging.basicConfig(
 log = logging.getLogger("nutrientcontent")
 
 
+async def _register_vector(conn) -> None:
+    """Configure-callback: registreert pgvector-adapter op elke conn die
+    de pool uitgeeft. Anders gaat een `vector(...)` parameter als
+    `double precision[]` over de wire en faalt de cast in SQL."""
+    await register_vector_async(conn)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     pool = AsyncConnectionPool(
-        settings.nevo_api_url, min_size=2, max_size=10, open=False
+        settings.nevo_api_url,
+        min_size=2,
+        max_size=10,
+        open=False,
+        configure=_register_vector,
     )
     await pool.open()
     app.state.pool = pool
@@ -66,6 +79,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(search_foods_router)
+    app.include_router(search_foods_vector_router)
     app.include_router(get_food_router)
     app.include_router(calculate_router)
     return app

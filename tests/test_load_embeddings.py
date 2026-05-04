@@ -61,7 +61,9 @@ def _set_version(conn: psycopg.Connection, code: int, version: int, embedding=No
 
 
 def test_fetch_pending_returns_expected_columns(loader_conn):
-    rows = loader.fetch_pending(loader_conn, target_version=1, force=False, limit=1)
+    # Force=True om onafhankelijk van DB-state (post-backfill is alles
+    # al op TARGET) toch een rij terug te krijgen voor de shape-assert.
+    rows = loader.fetch_pending(loader_conn, target_version=1, force=True, limit=1)
     assert len(rows) == 1
     code, name_en, food_group_en, synonyms = rows[0]
     assert isinstance(code, int)
@@ -128,8 +130,16 @@ def test_update_batch_does_not_commit(loader_conn):
     """Caller is verantwoordelijk voor commits — getest via een 2e
     connectie die de niet-gecommitte schrijf NIET mag zien."""
     [code] = _pick_first_codes(loader_conn, 1)
-    new_emb = [0.42] * EMBED_DIM
-    loader.update_batch(loader_conn, [(code, new_emb)], target_version=1)
+
+    # Lees huidige (mogelijk reeds-gebackfillde) versie als baseline.
+    with loader_conn.cursor() as cur:
+        cur.execute("SELECT embedding_version FROM foods WHERE nevo_code = %s", (code,))
+        baseline_version = cur.fetchone()[0]
+
+    sentinel_version = baseline_version + 50  # iets dat de DB zeker nog niet heeft
+    loader.update_batch(
+        loader_conn, [(code, [0.42] * EMBED_DIM)], target_version=sentinel_version
+    )
     # NIET committen.
 
     other = psycopg.connect(_loader_url(), autocommit=True)
@@ -137,10 +147,9 @@ def test_update_batch_does_not_commit(loader_conn):
     try:
         with other.cursor() as cur:
             cur.execute("SELECT embedding_version FROM foods WHERE nevo_code = %s", (code,))
-            version = cur.fetchone()[0]
-        # Andere sessie ziet de oude waarde — bewijs dat update_batch zelf
-        # niet commit.
-        assert version != 1 or version == 0  # afhankelijk van prior state, maar niet 1 zonder commit
+            seen = cur.fetchone()[0]
+        # Andere sessie mag de niet-gecommitte sentinel NIET zien.
+        assert seen == baseline_version
     finally:
         other.close()
 
