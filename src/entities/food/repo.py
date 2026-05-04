@@ -1,14 +1,15 @@
 """Data-access for foods + their nutrients.
 Data-access voor foods en hun nutriënten.
 
-Lookups by name (FTS + trigram fallback) and by nevo_code (single product
-with full nutrient list)."""
+Lookups by name (FTS + trigram fallback), by vector (semantic similarity),
+and by nevo_code (single product with full nutrient list)."""
 from typing import Literal
 
+import numpy as np
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
-from .models import FoodDetail, FoodSummary, NutrientValue
+from .models import FoodDetail, FoodSummary, FoodVectorHit, NutrientValue
 
 Lang = Literal["nl", "en"]
 
@@ -49,6 +50,42 @@ async def search(
                 await cur.execute(trgm_sql, (q, q, limit))
                 rows = await cur.fetchall()
     return [FoodSummary(**r) for r in rows]
+
+
+async def search_by_vector(
+    pool: AsyncConnectionPool,
+    query_vector: list[float],
+    *,
+    limit: int,
+    min_similarity: float,
+) -> list[FoodVectorHit]:
+    """Cosine-similarity search via pgvector HNSW.
+
+    Cosine-distance operator (`<=>`) returns 0 for identical vectors;
+    similarity = 1 - distance. We filteren in SQL i.p.v. Python zodat
+    de HNSW-index nog effectief is voor lage limits.
+
+    Vereist: foods.embedding gevuld door src/load_embeddings.py — rijen
+    met NULL embedding worden via de partial-index outscope gelaten.
+    """
+    # pgvector's psycopg-adapter accepteert numpy arrays; plain lists worden
+    # door psycopg als float[] doorgestuurd en de cast naar `vector` faalt.
+    qv = np.asarray(query_vector, dtype=np.float32)
+
+    sql = """
+        SELECT nevo_code, name_nl, name_en, food_group_nl, food_group_en,
+               1 - (embedding <=> %s) AS similarity
+        FROM foods
+        WHERE embedding IS NOT NULL
+          AND 1 - (embedding <=> %s) >= %s
+        ORDER BY embedding <=> %s
+        LIMIT %s
+    """
+    async with pool.connection() as conn:
+        async with conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(sql, (qv, qv, min_similarity, qv, limit))
+            rows = await cur.fetchall()
+    return [FoodVectorHit(**r) for r in rows]
 
 
 async def get_detail(

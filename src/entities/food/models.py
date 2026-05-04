@@ -13,6 +13,13 @@ class FoodSummary(BaseModel):
     food_group_en: str
 
 
+class FoodVectorHit(FoodSummary):
+    """Search-result row from GET /foods/vector — adds cosine similarity
+    so the caller can apply its own confidence threshold."""
+
+    similarity: float
+
+
 class NutrientValue(BaseModel):
     """One nutrient measurement on a food (per 100g of product)."""
 
